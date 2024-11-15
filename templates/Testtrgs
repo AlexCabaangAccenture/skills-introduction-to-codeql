@@ -1,0 +1,51 @@
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using CAT.App.D365.Service.Application.Service;
+using Newtonsoft.Json;
+
+namespace CAT.App.D365.Service.FA.Triggers
+{
+    public class AccountTriggers
+    {
+        private readonly IAccountApplication _service;
+
+        public AccountTriggers(IAccountApplication service)
+        {
+            _service = service;
+        }
+
+        [FunctionName("ValidateAccountCode")]
+        public async Task<IActionResult> ValidateAccountCodes(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ValidateAccountCode")] HttpRequest req,
+            ILogger log)
+        {
+            log.LogInformation("C# HTTP validate account codes trigger function processed a request.");
+       
+            string companyCode = req.Query["CompanyCode"];
+            string accCode = req.Query["AccountCode"];
+
+            try
+            {
+                var response = await _service.ValidateAccountCodeAsync(companyCode, accCode);
+
+                return new OkObjectResult(response);
+            }
+            catch (System.Exception ex)
+            {
+                var response = new
+                {
+                    ReturnSuccess = "False",
+                    ReturnMessage = ex.Message 
+                };
+                return new BadRequestObjectResult(JsonConvert.SerializeObject(response));
+            }
+
+                      
+
+        }
+    }
+}
