@@ -1,51 +1,34 @@
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using CAT.App.D365.Service.Application.Service;
-using Newtonsoft.Json;
-
-namespace CAT.App.D365.Service.FA.Triggers
-{
-    public class AccountTriggers
-    {
-        private readonly IAccountApplication _service;
-
-        public AccountTriggers(IAccountApplication service)
-        {
-            _service = service;
-        }
-
-        [FunctionName("ValidateAccountCode")]
-        public async Task<IActionResult> ValidateAccountCodes(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "ValidateAccountCode")] HttpRequest req,
-            ILogger log)
-        {
-            log.LogInformation("C# HTTP validate account codes trigger function processed a request.");
-       
-            string companyCode = req.Query["CompanyCode"];
-            string accCode = req.Query["AccountCode"];
-
-            try
-            {
-                var response = await _service.ValidateAccountCodeAsync(companyCode, accCode);
-
-                return new OkObjectResult(response);
-            }
-            catch (System.Exception ex)
-            {
-                var response = new
-                {
-                    ReturnSuccess = "False",
-                    ReturnMessage = ex.Message 
-                };
-                return new BadRequestObjectResult(JsonConvert.SerializeObject(response));
-            }
-
-                      
-
-        }
-    }
-}
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Label="Globals">
+    <SccProjectName>SAK</SccProjectName>
+    <SccProvider>SAK</SccProvider>
+    <SccAuxPath>SAK</SccAuxPath>
+    <SccLocalPath>SAK</SccLocalPath>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.ServiceBus" Version="5.16.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.5.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CAT.App.D365.Service.Application\CAT.App.D365.Service.Application.csproj" />
+    <ProjectReference Include="..\CAT.App.D365.Service.Core\CAT.App.D365.Service.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="host.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="local.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Properties\PublishProfiles\" />
+  </ItemGroup>
+</Project>
