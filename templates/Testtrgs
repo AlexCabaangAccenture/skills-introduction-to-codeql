@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -8,128 +9,78 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using CAT.App.D365.Service.Application.Service;
+using CAT.App.D365.Service.Core.Models;
 using Newtonsoft.Json.Linq;
+using CAT.App.D365.Service.Core.Utilities;
 using Azure;
+using Google.Protobuf.Collections;
+using System.Text.Json.Nodes;
 
 namespace CAT.App.D365.Service.FA.Triggers
 {
-    public class CustomerTriggers
+    public class CompanyTriggers
     {
-        private readonly ICustomerApplication _service;
+        private readonly ICompanyApplication _service;
 
-        public CustomerTriggers(ICustomerApplication service)
+        public CompanyTriggers(ICompanyApplication service)
         {
             _service = service;
         }
 
-        [FunctionName("CreateCustomer")]
-        public async Task<IActionResult> CreateCustomerAsync(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-            ILogger log)
+        [FunctionName("GetCurrentPeriod")]
+        public async Task<IActionResult> GetCurrentPeriod(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "GetCurrentPeriod/{dataAreaId}")] HttpRequest req,
+            ILogger log, string dataAreaId)
         {
-            dynamic responseMessage = new JObject();
+            log.LogInformation("C# HTTP trigger function GetCurrentPeriod processed a request.");
+
             try
             {
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject<dynamic>(requestBody);
+                string responseMessage = await _service.GetCompanyCurrentPeriodAsync(dataAreaId);
+                var responseJson = JObject.Parse(responseMessage);
+                var apiResponse = new ApiResponse();
+                Dictionary<string, object> responseDict = new Dictionary<string, object>(JsonConversionExtensions.ToDictionary(responseJson));
 
-                log.LogInformation($"HTTP create customer trigger function processed a request with request message {data}");
+                // Check if "IsSuccessful" exists and value is false
+                if (responseJson["IsSuccessful"] != null && !(bool)responseJson["IsSuccessful"])
+                {
+                    apiResponse.ResponseMessage = $"No Fiscal Periods were set for Company Id: {dataAreaId}";
+                    apiResponse.ResponseValue = false;
+                    apiResponse.AdditionalProperties = responseDict;
 
-                if (string.IsNullOrEmpty(data.PrimaryPostalAddress.CountryRegionISOCode?.ToString()))
-                {
-                    log.LogInformation($"Customer account creation failed, CountryRegionISOCode is a required field");
-                    responseMessage.Add(new JProperty("ReturnMessage", "Customer account creation failed, Invalid Address Information"));
-                    responseMessage.Add(new JProperty("ReturnValue ", false));
-                    return new BadRequestObjectResult(responseMessage);
+                    return new ObjectResult(apiResponse.ToJsonString())
+                    {
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    };
                 }
-                else if(string.IsNullOrEmpty(data.PrimaryPostalAddress.ZipCode?.ToString()))
-                {
-                    log.LogInformation($"Invalid ZipCode Address Information");
-                    responseMessage.Add(new JProperty("ReturnMessage", "Customer account creation failed, Invalid Address Information"));
-                    responseMessage.Add(new JProperty("ReturnValue ", false));
-                    return new BadRequestObjectResult(responseMessage);
-                }
-
-                if (!string.IsNullOrEmpty(data.CompanyId?.ToString()))
-                {
-                    var response = await _service.CreateCustomerAsync(requestBody);
-                    responseMessage = JsonConvert.DeserializeObject(response);
-                    responseMessage.Add(new JProperty("ReturnMessage", "Customer Account Successfully Created"));
-                    responseMessage.Add(new JProperty("ReturnValue ", true));
-                }
-                else
-                {
-                    log.LogInformation($"CompanyId is a required attribute");
-                    responseMessage.Add(new JProperty("ReturnMessage", "Customer account creation failed, CompanyId is a required attribute"));
-                    responseMessage.Add(new JProperty("ReturnValue ", false));
-                    return new BadRequestObjectResult(responseMessage);
+                else { //else, successful.
+                    apiResponse.ResponseMessage = "Current Period retrieved successfully.";
+                    apiResponse.ResponseValue = true;
+                    apiResponse.AdditionalProperties = responseDict;
                 }
 
-                log.LogInformation($"create customer request was successfully completed with response message {responseMessage}");
-                return new OkObjectResult(responseMessage);
+                return new OkObjectResult(apiResponse.ToJsonString());
             }
             catch (Exception ex)
             {
-                responseMessage.Add(new JProperty("ReturnMessage", $"Customer account creation failed, with error message: {ex.Message}"));
-                responseMessage.Add(new JProperty("ReturnValue ", false));
                 log.LogError($"An error occured. Message: {ex.Message} Inner Exception: {ex.InnerException}");
-                return new BadRequestObjectResult(responseMessage);
+                return new ObjectResult(ex.Message)
+                {
+                    StatusCode = StatusCodes.Status500InternalServerError
+                };
             }
+           
         }
 
-        [FunctionName("GetCustomer")]
-        public async Task<IActionResult> GetCustomerAsync([HttpTrigger(AuthorizationLevel.Function, "get", Route = "GetCustomer")] HttpRequest req,
-            ILogger log)
+        [FunctionName("GetCompany")]
+        public async Task<IActionResult> GetCompanyAsync([HttpTrigger(AuthorizationLevel.Function, "get", Route = "GetCompany/{legalEntityId}")] HttpRequest req,
+            ILogger log, string legalEntityId)
         {
-            try
-            {
-                string customerAccount = req.Query["CustomerAccount"];
-                string companyId = req.Query["CompanyId"];
+            log.LogInformation("C# HTTP get customer information trigger function processed a request.");
 
-                log.LogInformation($"C# HTTP get customer information trigger function processed a get customer({customerAccount}) record request.");
+            string responseMessage = await _service.GetCompanyAsync(legalEntityId);
 
-                string response = await _service.GetCustomerAsync(companyId, customerAccount);
-
-                dynamic responseMessage = JsonConvert.DeserializeObject(response);
-                responseMessage.Add(new JProperty("ReturnMessage", "Customer record retrieved retrieved."));
-                responseMessage.Add(new JProperty("ReturnValue ", true));
-                return new OkObjectResult(responseMessage);
-            }
-            catch (Exception ex)
-            {
-                log.LogError($"An error occured. Message: {ex.Message} Inner Exception: {ex.InnerException}");
-                throw new Exception(ex.Message);
-            }
-        }
-
-        [FunctionName("UpdateCustomer")]
-        public async Task<IActionResult> UpdateCustomerAsync([HttpTrigger(AuthorizationLevel.Function, "put", Route = "UpdateCustomer")] HttpRequest req, ILogger log)
-        {
-            dynamic responseMessage = new JObject();
-            try
-            {
-                string customerAccount = req.Query["CustomerAccount"];
-                string companyId = req.Query["CompanyId"];
-
-                log.LogInformation($"C# HTTP update customer trigger function processed an update customer({customerAccount}) record request.");
-
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-
-                var response = await _service.UpdateCustomerAsync(requestBody, companyId, customerAccount);
-                responseMessage = JsonConvert.DeserializeObject(response);
-                responseMessage.Add(new JProperty("ReturnMessage", "Customer Acount Successfully Updated"));
-                responseMessage.Add(new JProperty("ReturnValue ", true));
-
-                return new OkObjectResult(responseMessage);
-            }
-            catch (Exception ex)
-            {
-                responseMessage.Add(new JProperty("ReturnMessage", ex.Message));
-                responseMessage.Add(new JProperty("ReturnValue ", false));
-                log.LogError($"An error occured. Message: {ex.Message} Inner Exception: {ex.InnerException}");
-                return new BadRequestObjectResult(responseMessage);
-            }
+            return new OkObjectResult(responseMessage);
         }
     }
 }
