@@ -1,15 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CAT.App.D365.Service.Application.Service
 {
-    public interface ICompanyApplication
+    public interface IAccountApplication
     {
-        Task<string> CreateCompanyAsync(string companyInfo);
-        Task<string> GetCompanyCurrentPeriodAsync(string dataAreaId);
-        Task<string> GetCompanyAsync(string legalEntityId);
+        Task<string> ValidateAccountCodeAsync(string companyId, string accountCode);        
     }
 }
