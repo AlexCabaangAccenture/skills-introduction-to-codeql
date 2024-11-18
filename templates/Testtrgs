@@ -1,86 +1,17 @@
 using System;
-using System.IO;
-using System.Threading.Tasks;
 using System.Collections.Generic;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using CAT.App.D365.Service.Application.Service;
-using CAT.App.D365.Service.Core.Models;
-using Newtonsoft.Json.Linq;
-using CAT.App.D365.Service.Core.Utilities;
-using Azure;
-using Google.Protobuf.Collections;
-using System.Text.Json.Nodes;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace CAT.App.D365.Service.FA.Triggers
+namespace CAT.App.D365.Service.Application.Service
 {
-    public class CompanyTriggers
+    public interface ICustomerApplication
     {
-        private readonly ICompanyApplication _service;
+        Task<string> CreateCustomerAsync(string customerInfo);
 
-        public CompanyTriggers(ICompanyApplication service)
-        {
-            _service = service;
-        }
+        Task<string> GetCustomerAsync(string companyId, string customerAccount);
 
-        [FunctionName("GetCurrentPeriod")]
-        public async Task<IActionResult> GetCurrentPeriod(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "GetCurrentPeriod/{dataAreaId}")] HttpRequest req,
-            ILogger log, string dataAreaId)
-        {
-            log.LogInformation("C# HTTP trigger function GetCurrentPeriod processed a request.");
-
-            try
-            {
-                string responseMessage = await _service.GetCompanyCurrentPeriodAsync(dataAreaId);
-                var responseJson = JObject.Parse(responseMessage);
-                var apiResponse = new ApiResponse();
-                Dictionary<string, object> responseDict = new Dictionary<string, object>(JsonConversionExtensions.ToDictionary(responseJson));
-
-                // Check if "IsSuccessful" exists and value is false
-                if (responseJson["IsSuccessful"] != null && !(bool)responseJson["IsSuccessful"])
-                {
-                    apiResponse.ResponseMessage = $"No Fiscal Periods were set for Company Id: {dataAreaId}";
-                    apiResponse.ResponseValue = false;
-                    apiResponse.AdditionalProperties = responseDict;
-
-                    return new ObjectResult(apiResponse.ToJsonString())
-                    {
-                        StatusCode = StatusCodes.Status500InternalServerError
-                    };
-                }
-                else { //else, successful.
-                    apiResponse.ResponseMessage = "Current Period retrieved successfully.";
-                    apiResponse.ResponseValue = true;
-                    apiResponse.AdditionalProperties = responseDict;
-                }
-
-                return new OkObjectResult(apiResponse.ToJsonString());
-            }
-            catch (Exception ex)
-            {
-                log.LogError($"An error occured. Message: {ex.Message} Inner Exception: {ex.InnerException}");
-                return new ObjectResult(ex.Message)
-                {
-                    StatusCode = StatusCodes.Status500InternalServerError
-                };
-            }
-           
-        }
-
-        [FunctionName("GetCompany")]
-        public async Task<IActionResult> GetCompanyAsync([HttpTrigger(AuthorizationLevel.Function, "get", Route = "GetCompany/{legalEntityId}")] HttpRequest req,
-            ILogger log, string legalEntityId)
-        {
-            log.LogInformation("C# HTTP get customer information trigger function processed a request.");
-
-            string responseMessage = await _service.GetCompanyAsync(legalEntityId);
-
-            return new OkObjectResult(responseMessage);
-        }
+        Task<string> UpdateCustomerAsync(string customerInfo, string companyId, string customerAccount);
     }
 }
