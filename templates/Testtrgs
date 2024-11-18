@@ -1,8 +1,0 @@
-
-namespace CAT.App.D365.Service.Application.Service
-{
-    public interface IAccountApplication
-    {
-        Task<string> ValidateAccountCodeAsync(string companyId, string accountCode);        
-    }
-}
