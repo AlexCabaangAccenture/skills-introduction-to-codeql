@@ -6,12 +6,10 @@ using System.Threading.Tasks;
 
 namespace CAT.App.D365.Service.Application.Service
 {
-    public interface ICustomerApplication
+    public interface ICompanyApplication
     {
-        Task<string> CreateCustomerAsync(string customerInfo);
-
-        Task<string> GetCustomerAsync(string companyId, string customerAccount);
-
-        Task<string> UpdateCustomerAsync(string customerInfo, string companyId, string customerAccount);
+        Task<string> CreateCompanyAsync(string companyInfo);
+        Task<string> GetCompanyCurrentPeriodAsync(string dataAreaId);
+        Task<string> GetCompanyAsync(string legalEntityId);
     }
 }
